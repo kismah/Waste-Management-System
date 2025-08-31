@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Report Waste</title>
+  <style>
+    :root {
+      --bg-color: #f5f5f5;
+      --text-color: #222;
+      --card-bg: #fff;
+      --button-bg: #222;
+      --button-text: #fff;
+    }
+
+    body.dark-mode {
+      --bg-color: #121212;
+      --text-color: #eee;
+      --card-bg: #1e1e1e;
+      --button-bg: #444;
+      --button-text: #fff;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background:#4772b8;;
+      min-height: 100vh;
+      margin: 0;
+      padding: 60px 20px;
+      box-sizing: border-box;
+      color: var(--text-color);
+      transition: background 0.3s, color 0.3s;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .form-container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .form-container label {
+      display: block;
+      margin-top: 20px;
+      font-weight: bold;
+    }
+
+    .location-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .form-container input,
+    .form-container textarea,
+    .form-container select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 16px;
+      box-sizing: border-box;
+      background: var(--card-bg);
+      color: var(--text-color);
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .form-container .location-row input {
+      flex: 1;
+    }
+
+    .form-container .location-row button {
+      flex-shrink: 0;
+      padding: 10px 14px;
+      font-size: 14px;
+      background-color: var(--button-bg);
+      color: var(--button-text);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .form-container .location-row button:hover {
+      background-color: #666;
+    }
+
+    .form-container button.submit-btn {
+      margin-top: 25px;
+      width: 100%;
+      padding: 12px;
+      background-color: var(--button-bg);
+      color: var(--button-text);
+      border: none;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .form-container button.submit-btn:hover {
+      background-color: #666;
+    }
+
+    #map {
+      height: 200px;
+      border-radius: 8px;
+      margin-top: 13px;
+    }
+
+    /* Toggle Button */
+    #themeToggle {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      background: var(--button-bg);
+      color: var(--button-text);
+      transition: background 0.3s;
+    }
+  </style>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore-compat.js"></script>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+</head>
+<body>
+
+  <!-- Theme Toggle -->
+  <button id="themeToggle">🌙</button>
+
+  <h1>Report Waste</h1>
+
+  <div class="form-container">
+    <label for="email">Your Email</label>
+    <input type="email" id="email" placeholder="Enter your email address" />
+
+    <label for="location">Location</label>
+    <div class="location-row">
+      <input type="text" id="location" placeholder="Enter location or use current location" />
+      <button type="button" onclick="getCurrentLocation()">Use My Location</button>
+    </div>
+
+    <!-- 📍 Map for Pinning -->
+    <div id="map"></div>
+
+    <label for="description">Description</label>
+    <textarea id="description" rows="4" placeholder="Describe the issue..."></textarea>
+
+    <!-- ✅ Category Dropdown -->
+    <label for="category">Category</label>
+    <select id="category" required>
+      <option value="">-- Select Category --</option>
+      <option value="Plastic Waste">Plastic Waste</option>
+      <option value="E-waste">E-Waste</option>
+      <option value="Organic Waste">Organic Waste</option>
+      <option value="Other">Other</option>
+    </select>
+
+    <label for="imageUrl">Image URL (optional)</label>
+    <input type="text" id="imageUrl" placeholder="Paste image link here (optional)" />
+
+    <button class="submit-btn" onclick="submitReport()">Submit Report</button>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAGIbJXomhXVDdCoH8gWKLUupSecsW-XQE",
+      authDomain: "waste-management-system-4905a.firebaseapp.com",
+      projectId: "waste-management-system-4905a",
+      storageBucket: "waste-management-system-4905a.appspot.com",
+      messagingSenderId: "343829000341",
+      appId: "1:343829000341:web:c9d9f98d056d8ff61fab9c",
+      measurementId: "G-2V969JWQ40"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let selectedLat = null;
+    let selectedLng = null;
+
+    function submitReport() {
+      const email = document.getElementById("email").value.trim();
+      const location = document.getElementById("location").value.trim();
+      const description = document.getElementById("description").value.trim();
+      const category = document.getElementById("category").value.trim();
+      const imageUrl = document.getElementById("imageUrl").value.trim();
+
+      if (!email || !location || !description || !category) {
+        alert("Please fill in all required fields (Email, Location, Description, Category).");
+        return;
+      }
+
+      db.collection("reports").add({
+        userEmail: email,
+        location: location,
+        description: description,
+        category: category,
+        imageUrl: imageUrl || null,
+        timestamp: new Date(),
+        status: "Pending",
+        lat: selectedLat,
+        lng: selectedLng
+      })
+      .then(() => {
+        alert("Report submitted successfully!");
+        document.getElementById("email").value = "";
+        document.getElementById("location").value = "";
+        document.getElementById("description").value = "";
+        document.getElementById("category").value = "";
+        document.getElementById("imageUrl").value = "";
+        if (marker) map.removeLayer(marker);
+        selectedLat = null;
+        selectedLng = null;
+      })
+      .catch(error => {
+        console.error("Error submitting report:", error);
+        alert("Error submitting report. Check console for details.");
+      });
+    }
+
+    function getCurrentLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          position => {
+            selectedLat = position.coords.latitude;
+            selectedLng = position.coords.longitude;
+            document.getElementById("location").value = `${selectedLat.toFixed(5)}, ${selectedLng.toFixed(5)}`;
+            if (marker) {
+              marker.setLatLng([selectedLat, selectedLng]);
+            } else {
+              marker = L.marker([selectedLat, selectedLng]).addTo(map);
+            }
+            map.setView([selectedLat, selectedLng], 13);
+          },
+          error => {
+            alert("Unable to retrieve location.");
+            console.error(error);
+          }
+        );
+      } else {
+        alert("Geolocation is not supported by this browser.");
+      }
+    }
+
+    // 🌍 Initialize Leaflet Map
+    const map = L.map('map').setView([20.5937, 78.9629], 5); // India center
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker = null;
+
+    map.on('click', function(e) {
+      selectedLat = e.latlng.lat;
+      selectedLng = e.latlng.lng;
+      document.getElementById("location").value = `${selectedLat.toFixed(5)}, ${selectedLng.toFixed(5)}`;
+      if (marker) {
+        marker.setLatLng(e.latlng);
+      } else {
+        marker = L.marker(e.latlng).addTo(map);
+      }
+    });
+
+    // 🌙/☀️ Dark Mode Toggle
+    const themeToggle = document.getElementById("themeToggle");
+    const currentTheme = localStorage.getItem("theme");
+
+    if (currentTheme === "dark") {
+      document.body.classList.add("dark-mode");
+      themeToggle.textContent = "☀️";
+    }
+
+    themeToggle.addEventListener("click", () => {
+      document.body.classList.toggle("dark-mode");
+      if (document.body.classList.contains("dark-mode")) {
+        localStorage.setItem("theme", "dark");
+        themeToggle.textContent = "☀️";
+      } else {
+        localStorage.setItem("theme", "light");
+        themeToggle.textContent = "🌙";
+      }
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #667eea, #1b2c6e);
+      margin: 0;
+      padding: 30px;
+      color: white;
+      transition: background 0.3s, color 0.3s;
+    }
+      
+    body.dark-mode {
+      background: #121212 !important;
+      color: #eee !important;
+    }
+
+    h1 { text-align: center; margin-bottom: 20px; }
+
+    .filters { text-align: center; margin-bottom: 30px; }
+    .filters button {
+      margin: 0 10px; padding: 10px 16px;
+      border: none; border-radius: 8px;
+      background: white; color: #333;
+      cursor: pointer; font-weight: bold;
+    }
+    .filters button:hover { background: #ddd; }
+
+    .report {
+      background: white; color: #333;
+      padding: 20px; margin-bottom: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      transition: background 0.3s, color 0.3s;
+    }
+    body.dark-mode .report { background: #1e1e1e; color: #eee; }
+
+    .report img { max-width: 100%; margin-top: 10px; border-radius: 8px; }
+
+    select { padding: 8px; margin-top: 10px; }
+
+    #loginBox {
+      background: white; color: black;
+      max-width: 400px; margin: 100px auto;
+      padding: 30px; border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      transition: background 0.3s, color 0.3s;
+    }
+    body.dark-mode #loginBox { background: #1e1e1e; color: #eee; }
+
+    #loginBox input {
+      width: 100%; padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 6px; border: 1px solid #ccc;
+    }
+    #loginBox button {
+      width: 100%; padding: 10px;
+      background-color: #667eea; color: white;
+      border: none; border-radius: 6px;
+      font-weight: bold; cursor: pointer;
+    }
+
+    #dashboard { display: none; position: relative; }
+    #logoutBtn {
+      position: absolute; top: 10px; right: 10px;
+      background: white; color: #333;
+      border: none; border-radius: 6px;
+      padding: 8px 14px; font-weight: bold; cursor: pointer;
+    }
+    body.dark-mode #logoutBtn { background: #333; color: #eee; }
+    #logoutBtn:hover { background: #ddd; }
+
+    #adminMap { height: 400px; margin-top: 40px; border-radius: 12px; overflow: hidden; }
+
+    #themeToggle {
+      position: fixed; top: 15px; right: 15px;
+      padding: 8px 12px; border-radius: 6px; border: none;
+      cursor: pointer; background: #fff; color: #000;
+      font-size: 16px; transition: background 0.3s, color 0.3s;
+    }
+    body.dark-mode #themeToggle { background: #333; color: #fff; }
+  </style>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-auth-compat.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Leaflet.js -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+</head>
+<body>
+
+  <button id="themeToggle">🌙</button>
+  
+  <div id="loginBox">
+    <h2>Admin Login</h2>
+    <input type="email" id="email" placeholder="Admin Email" />
+    <input type="password" id="password" placeholder="Password" />
+    <button onclick="login()">Login</button>
+    <p id="loginError" style="color: red;"></p>
+  </div>
+
+  <div id="dashboard">
+    <button id="logoutBtn" onclick="logout()">Logout</button>
+    <h1>Admin Dashboard</h1>
+
+    <div class="filters">
+      <button onclick="fetchReports()">All</button>
+      <button onclick="fetchReports('Pending')">Pending</button>
+      <button onclick="fetchReports('In Progress')">In Progress</button>
+      <button onclick="fetchReports('Resolved')">Resolved</button>
+    </div>
+
+    <div style="background: #ffffff; color: #333; padding: 20px; border-radius: 12px; max-width: 900px; margin: 0 auto 30px auto;" id="searchBox">
+      <h3>🔍 Search & Filter Reports</h3>
+      <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+        <input type="text" id="filterEmail" placeholder="User Email" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ccc;" />
+        <input type="text" id="filterLocation" placeholder="Location" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ccc;" />
+        <select id="filterStatus" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ccc;">
+          <option value="">All Statuses</option>
+          <option value="Pending">Pending</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Resolved">Resolved</option>
+        </select>
+        <input type="date" id="filterFromDate" style="padding: 8px; border-radius: 6px; border: 1px solid #ccc;" />
+        <input type="date" id="filterToDate" style="padding: 8px; border-radius: 6px; border: 1px solid #ccc;" />
+        <button onclick="fetchReports()" style="padding: 10px 16px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: bold;">Apply Filters</button>
+      </div>
+    </div>
+
+    <div id="reportList"></div>
+
+    <div style="margin-top: 40px;">
+      <h2 style="text-align: center;">📊 Report Analytics</h2>
+      <canvas id="statusChart" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; padding: 20px;"></canvas>
+      <canvas id="categoryChart" style="max-width: 600px; margin: 40px auto; background: white; border-radius: 12px; padding: 20px;"></canvas>
+    </div>
+
+    <div style="margin-top: 40px;">
+      <h2 style="text-align: center;">🗺️ Report Locations Map</h2>
+      <div id="adminMap"></div>
+    </div>
+  </div>
+
+  <script>
+    const themeToggle = document.getElementById("themeToggle");
+    const currentTheme = localStorage.getItem("theme");
+    if (currentTheme === "dark") {
+      document.body.classList.add("dark-mode");
+      themeToggle.textContent = "☀️";
+    }
+    themeToggle.addEventListener("click", () => {
+      document.body.classList.toggle("dark-mode");
+      if (document.body.classList.contains("dark-mode")) {
+        localStorage.setItem("theme", "dark");
+        themeToggle.textContent = "☀️";
+      } else {
+        localStorage.setItem("theme", "light");
+        themeToggle.textContent = "🌙";
+      }
+    });
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAGIbJXomhXVDdCoH8gWKLUupSecsW-XQE",
+      authDomain: "waste-management-system-4905a.firebaseapp.com",
+      projectId: "waste-management-system-4905a"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+
+    function login() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      auth.signInWithEmailAndPassword(email, password)
+        .then(() => {
+          document.getElementById("loginBox").style.display = "none";
+          document.getElementById("dashboard").style.display = "block";
+          fetchReports();
+          loadAnalytics();
+          loadMap();
+        })
+        .catch(error => {
+          document.getElementById("loginError").innerText = error.message;
+        });
+    }
+
+    function logout() {
+      auth.signOut().then(() => {
+        document.getElementById("dashboard").style.display = "none";
+        document.getElementById("loginBox").style.display = "block";
+        document.getElementById("email").value = "";
+        document.getElementById("password").value = "";
+        document.getElementById("loginError").innerText = "";
+      });
+    }
+
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        document.getElementById("loginBox").style.display = "none";
+        document.getElementById("dashboard").style.display = "block";
+        fetchReports();
+        loadAnalytics();
+        loadMap();
+      } else {
+        document.getElementById("dashboard").style.display = "none";
+        document.getElementById("loginBox").style.display = "block";
+      }
+    });
+
+    // Fetch reports and remove resolved ones
+    function fetchReports(statusFilter = "") {
+      let query = db.collection("reports").orderBy("timestamp", "desc");
+      const emailFilter = document.getElementById("filterEmail").value.trim();
+      const locationFilter = document.getElementById("filterLocation").value.trim();
+      const statusSelect = document.getElementById("filterStatus").value;
+      const fromDate = document.getElementById("filterFromDate").value;
+      const toDate = document.getElementById("filterToDate").value;
+
+      query.get().then(snapshot => {
+        const reportList = document.getElementById("reportList");
+        reportList.innerHTML = "";
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const docId = doc.id;
+
+          // Delete resolved reports automatically from dashboard
+          if (data.status === "Resolved") {
+            db.collection("reports").doc(docId).delete();
+            return;
+          }
+
+          if (statusFilter && data.status !== statusFilter) return;
+          if (statusSelect && data.status !== statusSelect) return;
+          if (emailFilter && !data.userEmail.toLowerCase().includes(emailFilter.toLowerCase())) return;
+          if (locationFilter && !data.location.toLowerCase().includes(locationFilter.toLowerCase())) return;
+
+          const reportDate = data.timestamp.toDate();
+          if (fromDate && reportDate < new Date(fromDate)) return;
+          if (toDate && reportDate > new Date(toDate)) return;
+
+          const reportDiv = document.createElement("div");
+          reportDiv.className = "report";
+          reportDiv.innerHTML = `
+            <strong>Email:</strong> ${data.userEmail}<br>
+            <strong>Location:</strong> ${data.location}<br>
+            <strong>Description:</strong> ${data.description}<br>
+            <strong>Category:</strong> ${data.category}<br>
+            <strong>Status:</strong> 
+            <select onchange="updateStatus('${docId}', this.value)">
+              <option value="Pending" ${data.status === "Pending" ? "selected" : ""}>Pending</option>
+              <option value="In Progress" ${data.status === "In Progress" ? "selected" : ""}>In Progress</option>
+              <option value="Resolved" ${data.status === "Resolved" ? "selected" : ""}>Resolved</option>
+            </select>
+            ${data.imageUrl ? `<img src="${data.imageUrl}" />` : ""}
+          `;
+          reportList.appendChild(reportDiv);
+        });
+      });
+    }
+
+    function updateStatus(docId, status) {
+      db.collection("reports").doc(docId).update({ status })
+        .then(() => fetchReports())
+        .catch(err => console.error(err));
+    }
+
+    function loadAnalytics() {
+      db.collection("reports").get().then(snapshot => {
+        const statusCount = { "Pending": 0, "In Progress": 0, "Resolved": 0 };
+        const categoryCount = { "Plastic Waste": 0, "E-Waste": 0, "Organic Waste": 0, "Other": 0 };
+
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if(data.status) statusCount[data.status] = (statusCount[data.status] || 0) + 1;
+          if(data.category) categoryCount[data.category] = (categoryCount[data.category] || 0) + 1;
+        });
+
+        renderStatusChart(statusCount);
+        renderCategoryChart(categoryCount);
+      });
+    }
+
+    function renderStatusChart(data) {
+      const ctx = document.getElementById("statusChart").getContext("2d");
+      new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: Object.keys(data),
+          datasets: [{
+            data: Object.values(data),
+            backgroundColor: ['#f6ad55','#4299e1','#48bb78']
+          }]
+        }
+      });
+    }
+
+    function renderCategoryChart(data) {
+      const ctx = document.getElementById("categoryChart").getContext("2d");
+      new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: Object.keys(data),
+          datasets: [{
+            data: Object.values(data),
+            backgroundColor: ['#ed64a6','#f6e05e','#68d391','#a0aec0']
+          }]
+        }
+      });
+    }
+
+    function loadMap() {
+      const mapDiv = document.getElementById('adminMap');
+      mapDiv.innerHTML = '';
+      const map = L.map('adminMap').setView([20.5937, 78.9629], 5);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      db.collection("reports").get().then(snapshot => {
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if(data.lat && data.lng) {
+            const marker = L.marker([data.lat, data.lng]).addTo(map);
+            marker.bindPopup(`<strong>${data.category || "Unspecified"}</strong><br>${data.location}<br>${data.description}`);
+          }
+        });
+      });
+    }
+  </script>
+</body>
+</html>

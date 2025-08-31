@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Analytics Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore-compat.js"></script>
+  <style>
+    body {
+      font-family: Arial;
+      padding: 40px;
+      background: #f0f4f7;
+    }
+    h1 {
+      text-align: center;
+    }
+    .card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    canvas {
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <h1>Waste Report Analytics</h1>
+
+  <div class="card">
+    <h3>Total Reports: <span id="totalCount">Loading...</span></h3>
+  </div>
+
+  <div class="card">
+    <canvas id="statusChart"></canvas>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAGIbJXomhXVDdCoH8gWKLUupSecsW-XQE",
+      authDomain: "waste-management-system-4905a.firebaseapp.com",
+      projectId: "waste-management-system-4905a",
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    async function loadAnalytics() {
+      const snapshot = await db.collection("reports").get();
+      const reports = snapshot.docs.map(doc => doc.data());
+
+      document.getElementById("totalCount").textContent = reports.length;
+
+      const statusCounts = { pending: 0, resolved: 0, other: 0 };
+      reports.forEach(r => {
+        const status = r.status || "other";
+        if (statusCounts[status] !== undefined) {
+          statusCounts[status]++;
+        } else {
+          statusCounts.other++;
+        }
+      });
+
+      const ctx = document.getElementById("statusChart").getContext("2d");
+      new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: ["Pending", "Resolved", "Other"],
+          datasets: [{
+            label: "Report Status",
+            data: [
+              statusCounts.pending,
+              statusCounts.resolved,
+              statusCounts.other
+            ],
+            backgroundColor: ["#f39c12", "#27ae60", "#95a5a6"]
+          }]
+        }
+      });
+    }
+
+    loadAnalytics();
+  </script>
+</body>
+</html>
